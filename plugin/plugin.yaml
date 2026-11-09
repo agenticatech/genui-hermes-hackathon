@@ -1,0 +1,11 @@
+name: genui
+version: "0.2.0"
+requires_hermes: ">=0.22.5"
+description: Generative UI for Hermes. The agent shows a pre-designed live component early, updates it in place as it works, and asks for a decision only when one is needed.
+author: agenticatech
+provides_tools:
+  - show_component
+  - update_component
+  - ask_user
+provides_hooks:
+  - pre_llm_call

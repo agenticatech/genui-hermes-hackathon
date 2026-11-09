@@ -1,0 +1,61 @@
+{
+  "$id": "review_list",
+  "title": "Review list",
+  "description": "A living list the user reviews before an irreversible action on some of its items: files to delete, branches to prune, messages to archive. Each item has a checkbox; the user's selection comes back with their click as values.selected (the ids of the ticked items). Show it once, then update it while you scan and while you apply the action.",
+  "type": "object",
+  "required": ["title", "status", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {"type": "string"},
+    "subtitle": {"type": "string", "description": "One line of context: the folder, the repository, the account."},
+    "status": {
+      "enum": ["scanning", "review", "applying", "done", "failed"],
+      "description": "scanning: you are listing. review: the user chooses (offer the action). applying: you act on their selection. done / failed: finished."
+    },
+    "status_text": {"type": "string", "description": "One short line shown with a spinner or icon."},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "description": "What the action acts on (a file name, a branch name): the selection comes back as these ids."},
+          "label": {"type": "string"},
+          "detail": {"type": "string", "description": "Age, author, location: what helps the user decide."},
+          "size_mb": {"type": "number", "minimum": 0},
+          "tag": {"type": "string", "description": "One or two words: \"merged\", \"in use\", \"recent\"."},
+          "tone": {"enum": ["neutral", "good", "warn", "bad"]},
+          "selected": {"type": "boolean", "description": "Ticked by default: your recommendation."},
+          "locked": {"type": "boolean", "description": "Cannot be selected (unsafe to act on); say why in tag or detail."},
+          "state": {"enum": ["pending", "done", "failed", "skipped"], "description": "Outcome once the action ran, from its tool result."}
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total_mb": {"type": "number", "minimum": 0, "description": "Size of everything listed, from the scan."},
+        "freed_mb": {"type": "number", "minimum": 0, "description": "Space actually freed, from the action's result."},
+        "note": {"type": "string"}
+      }
+    },
+    "explanation": {"type": "string", "description": "Why you recommend this selection, or what went wrong, in one or two sentences."},
+    "actions": {
+      "type": "array",
+      "description": "Decisions offered to the user. Clicking one sends {action_id, values: {selected: [ids]}} back to the agent.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"type": "string"},
+          "kind": {"enum": ["primary", "secondary", "danger"]},
+          "busy_label": {"type": "string", "description": "What the pill says once clicked, e.g. \"Deploying\"."}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "$id": "study_card",
+  "title": "Study card",
+  "description": "A living card for one study session the user asked for: test them, find their weak spots, teach the gap, re-test, plan their reviews. The quiz runs in the card: the user answers every question there, then one click sends values {quiz, answers: {question id: option id}, score, total}. Show it once, then update it after each step.",
+  "type": "object",
+  "required": ["title", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {"type": "string"},
+    "subtitle": {"type": "string", "description": "One line of context: the subject, the exam, the deadline."},
+    "status": {
+      "enum": ["running", "quiz", "waiting", "done", "failed"],
+      "description": "running: you are working (writing questions, grading, scheduling). quiz: the user is answering the quiz in the card. waiting: you need the user's decision (offer it in actions). done / failed: finished."
+    },
+    "status_text": {"type": "string", "description": "One short line shown with a spinner or icon."},
+    "steps": {
+      "type": "array",
+      "description": "The session plan, in order, e.g. diagnostic, weak spots, lesson, re-test, reviews.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "state"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"type": "string"},
+          "state": {"enum": ["pending", "running", "done", "failed", "skipped"]},
+          "detail": {"type": "string", "description": "Result in a few words: \"3/5\", \"2 weak spots\"."}
+        }
+      }
+    },
+    "quiz": {
+      "type": "object",
+      "description": "The round the user answers now. A new id starts a new round; remove the quiz (null) once its answers are in.",
+      "required": ["id", "questions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "description": "This round, e.g. \"diagnostic\", \"retest\"."},
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "prompt", "options", "answer"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"type": "string"},
+              "topic": {"type": "string", "description": "The topic id this question tests."},
+              "prompt": {"type": "string"},
+              "options": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "required": ["id", "label"],
+                  "additionalProperties": false,
+                  "properties": {"id": {"type": "string"}, "label": {"type": "string"}}
+                }
+              },
+              "answer": {"type": "string", "description": "The id of the right option."},
+              "explain": {"type": "string", "description": "One sentence shown once the user answered."}
+            }
+          }
+        }
+      }
+    },
+    "topics": {
+      "type": "array",
+      "description": "Where the user stands, from their answers: one row per topic.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "mastery"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"type": "string"},
+          "mastery": {"type": "number", "minimum": 0, "maximum": 1, "description": "0 to 1, from the answers."},
+          "note": {"type": "string", "description": "A few words: \"missed 2 of 2\", \"solid\"."}
+        }
+      }
+    },
+    "lesson": {
+      "type": "object",
+      "description": "A short lesson on the weak spots: a few key ideas and flashcards the user flips in the card.",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string"},
+        "points": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
+        "cards": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["front", "back"],
+            "additionalProperties": false,
+            "properties": {"front": {"type": "string"}, "back": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "schedule": {
+      "type": "array",
+      "description": "Planned reviews. planned: proposed; set: the reminder exists (from the tool result); done: reviewed.",
+      "items": {
+        "type": "object",
+        "required": ["id", "when", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "when": {"type": "string"},
+          "label": {"type": "string"},
+          "state": {"enum": ["planned", "set", "done"]}
+        }
+      }
+    },
+    "explanation": {"type": "string", "description": "Why the agent needs a decision, in one or two sentences."},
+    "actions": {
+      "type": "array",
+      "description": "Decisions offered to the user. While a quiz is on, the card shows them once every question is answered; the click sends the answers with it. Offer none and a finished quiz shows its own \"Send my answers\" (action_id submit_quiz).",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"type": "string"},
+          "kind": {"enum": ["primary", "secondary", "danger"]},
+          "busy_label": {"type": "string"}
+        }
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "url"],
+        "additionalProperties": false,
+        "properties": {"label": {"type": "string"}, "url": {"type": "string"}}
+      }
+    }
+  }
+}

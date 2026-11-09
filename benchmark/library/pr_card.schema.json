@@ -1,0 +1,97 @@
+{
+  "$id": "pr_card",
+  "title": "Pull request card",
+  "description": "A living card for one pull request. Show it once, then update it as git work progresses.",
+  "type": "object",
+  "required": ["title", "status", "commits"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {"type": "string"},
+    "pr": {"type": ["integer", "null"]},
+    "base": {"type": "string", "description": "The branch the PR merges into. Default main."},
+    "status": {
+      "enum": ["committing", "pushing", "opening_pr", "fetching", "checking_merge", "conflicts", "resolving",
+               "pushing_merge", "checks_running", "ready", "merging", "merged", "failed"]
+    },
+    "status_text": {"type": "string", "description": "One short line shown with a spinner or icon."},
+    "commits": {
+      "type": "array",
+      "description": "Newest first, down to the commit the branch started from. branch: the branch a commit is on (the base for its commits).",
+      "items": {
+        "type": "object",
+        "required": ["sha", "message", "author"],
+        "additionalProperties": false,
+        "properties": {
+          "sha": {"type": "string"},
+          "message": {"type": "string"},
+          "author": {"type": "string"},
+          "branch": {"type": "string"},
+          "age": {"type": "string"},
+          "state": {"enum": ["ok", "pending", "conflict", "resolved", "new"]}
+        }
+      }
+    },
+    "conflicts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "resolved": {"type": "integer", "minimum": 0},
+        "files": {"type": "array", "items": {"type": "string"}},
+        "hunks": {
+          "type": "array",
+          "description": "Each conflicting line from the merge: who changed it on the base, their line and ours.",
+          "items": {
+            "type": "object",
+            "required": ["file"],
+            "additionalProperties": false,
+            "properties": {
+              "file": {"type": "string"},
+              "line": {"type": "integer"},
+              "by": {"type": "string"},
+              "theirs": {"type": "string"},
+              "ours": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "state"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "state": {"enum": ["pending", "running", "passed", "failed"]},
+          "detail": {"type": "string", "description": "Short result, e.g. \"42 passed\" or \"25/42\" while running."},
+          "done": {"type": "integer", "minimum": 0},
+          "total": {"type": "integer", "minimum": 0},
+          "info": {"type": "string", "description": "What ran, e.g. \"vitest · 42 passed, 0 failed\"."},
+          "duration": {"type": "string"}
+        }
+      }
+    },
+    "explanation": {"type": "string", "description": "Why the agent needs a decision, in one or two sentences."},
+    "actions": {
+      "type": "array",
+      "description": "Decisions offered to the user. Clicking one sends {action_id} back to the agent.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"type": "string"},
+          "kind": {"enum": ["primary", "secondary", "danger"]},
+          "busy_label": {"type": "string", "description": "What the pill says once clicked, e.g. \"Resolving\"."}
+        }
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {"type": "object", "required": ["label", "url"], "properties": {"label": {"type": "string"}, "url": {"type": "string"}}}
+    }
+  }
+}

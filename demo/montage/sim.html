@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+/* Hermes Desktop, Cyberpunk theme, as the chat would look WITHOUT the GenUI plugin.
+   Sizes match the real recording once scaled into the split screen's left panel. */
+:root { --bg: #030a03; --input: #0c130c; --bubble: #0b160b; --border: #18471f; --fg: #12ff40; --text: #2ee860; --dim: #2f8a45; }
+html, body { margin: 0; background: var(--bg); }
+body { width: 960px; height: 1024px; overflow: hidden; position: relative; font-family: "Courier New", Courier, monospace; color: var(--text); }
+#chat { position: absolute; left: 7px; right: 7px; top: 25px; display: grid; gap: 0; }
+.bubble { box-sizing: border-box; border: 1px solid var(--border); background: var(--bubble); color: var(--fg); padding: 11px 16px; font-size: 16.4px; line-height: 21px; margin-bottom: 10px; }
+.row { color: var(--dim); font-size: 14.2px; line-height: 28px; padding-left: 16px; }
+.row .spin { display: inline-block; width: 1.2em; color: var(--fg); }
+.say { color: var(--text); font-size: 16.4px; line-height: 25.8px; padding: 14px 16px 20px; white-space: pre-wrap; }
+.say b { color: var(--fg); }
+.input { position: absolute; left: 7px; right: 7px; bottom: 26px; height: 47px; box-sizing: border-box; border: 1px solid var(--border);
+  background: var(--input); display: flex; align-items: center; gap: 12px; padding: 0 14px; font-size: 16.4px; color: var(--fg); }
+.input .plus { color: var(--dim); font-size: 20px; }
+.input .ph { color: var(--dim); }
+.caret { display: inline-block; width: 2px; height: 19px; background: var(--fg); vertical-align: -3px; margin-left: 1px; }
+</style></head>
+<body>
+<div id="chat"></div>
+<div class="input"><span class="plus">+</span><span id="field"></span></div>
+<script>
+let DATA = { events: [] };
+window.setData = (d) => { DATA = d; };
+const SPIN = "|/-\\";  // Courier New has no braille spinner glyphs
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+// "**bold**" spans, cut after n visible characters.
+function partial(text, n) {
+  let out = "", left = n, bold = false;
+  for (const part of text.split("**")) {
+    const piece = part.slice(0, Math.max(0, left));
+    out += bold ? `<b>${esc(piece)}</b>` : esc(piece);
+    left -= part.length;
+    bold = !bold;
+    if (left <= 0) break;
+  }
+  return out;
+}
+const plain = (text) => text.replace(/\*\*/g, "");
+window.renderAt = (t) => {
+  const blocks = [];
+  let activity = null, typed = null;
+  for (const e of DATA.events) {
+    if (e.t > t) continue;
+    const k = Math.min(1, (t - e.t) / (e.dur || 1e-9));
+    if (e.type === "bubble") blocks.push(`<div class="bubble">${esc(e.text)}</div>`);
+    else if (e.type === "activity") activity = e.text;
+    else if (e.type === "row") { activity = null; blocks.push(`<div class="row">${esc(e.text)}</div>`); }
+    else if (e.type === "say") { activity = null; blocks.push(`<div class="say">${partial(e.text, Math.ceil(plain(e.text).length * k))}</div>`); }
+    else if (e.type === "type") typed = e.text.slice(0, Math.ceil(e.text.length * k));
+    else if (e.type === "send") typed = null;
+  }
+  if (activity) blocks.push(`<div class="row"><span class="spin">${SPIN[Math.floor(t * 10) % SPIN.length]}</span>${esc(activity)}</div>`);
+  const html = blocks.join("");
+  const chat = document.getElementById("chat");
+  if (chat.innerHTML !== html) chat.innerHTML = html;
+  const field = document.getElementById("field");
+  const fieldHtml = typed === null ? `<span class="ph">Give Hermes a task</span>` : `${esc(typed)}<span class="caret"></span>`;
+  if (field.innerHTML !== fieldHtml) field.innerHTML = fieldHtml;
+  return html + "|" + fieldHtml;
+};
+</script>
+</body></html>

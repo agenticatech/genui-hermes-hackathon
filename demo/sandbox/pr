@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Stand-in for `gh pr` in the demo sandbox, where there is no GitHub: the same verbs, run from
+# inside ~/genui-sandbox/webapp, against its origin (a bare repository) and a small state file.
+# Merging really merges into origin/main; conflicts are git's own (git merge-tree).
+#   pr create [--title T] [--body B]   open the pull request for the current branch
+#   pr view                            state, mergeability, checks
+#   pr checks                          run the CI checks (tests, lint, types, preview deploy)
+#   pr merge                           merge it into main once it merges cleanly and checks passed
+set -uo pipefail
+S="$HOME/genui-sandbox"
+STATE="$S/remote/pr.state"
+URL="https://github.com/acme/webapp/pull/128"
+die() { echo "error: $*" >&2; exit 1; }
+
+git rev-parse --git-dir >/dev/null 2>&1 || die "not a git repository: run pr from inside ~/genui-sandbox/webapp"
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+get() { [ -f "$STATE" ] && sed -n "s/^$1=//p" "$STATE" | tail -1; }
+put() { touch "$STATE"; grep -v "^$1=" "$STATE" > "$STATE.tmp" || true; echo "$1=$2" >> "$STATE.tmp"; mv "$STATE.tmp" "$STATE"; }
+pushed() { git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null 2>&1; }
+# Whether the pushed branch merges cleanly into origin/main.
+clean() { git fetch -q origin 2>/dev/null; git merge-tree --write-tree --quiet "origin/main" "origin/$BRANCH" >/dev/null 2>&1; }
+
+cmd="${1:-}"; shift || true
+title=""
+while [ $# -gt 0 ]; do
+  case "$1" in --title|-t) title="${2:-}"; shift 2;; --body|-b|--base|-B|--head|-H) shift 2;; *) shift;; esac
+done
+
+case "$cmd" in
+  create)
+    [ "$BRANCH" = "main" ] && die "you are on main: switch to the branch to propose"
+    pushed || die "branch $BRANCH is not on origin: push it first (git push -u origin $BRANCH)"
+    if [ "$(get state)" = "open" ]; then echo "a pull request for $BRANCH already exists: $URL"; exit 0; fi
+    put number 128; put state open; put branch "$BRANCH"; put title "${title:-$(git log -1 --format=%s)}"; put checks none
+    echo "Creating pull request for $BRANCH into main in acme/webapp"
+    echo
+    echo "$URL"
+    ;;
+  view|status)
+    [ -f "$STATE" ] || die "no pull request for $BRANCH yet (pr create)"
+    if [ "$(get state)" = "merged" ]; then m="MERGED"; elif clean; then m="MERGEABLE"; else m="CONFLICTING"; fi
+    echo "#$(get number) $(get title)"
+    echo "state:     $(get state | tr a-z A-Z)"
+    echo "branches:  main <- $(get branch)"
+    echo "mergeable: $m"
+    echo "checks:    $(get checks)"
+    echo "url:       $URL"
+    ;;
+  checks)
+    [ "$(get state)" = "open" ] || die "no open pull request for $BRANCH (pr create)"
+    clean || die "#128 has merge conflicts with main: checks cannot run until they are resolved"
+    sha="$(git rev-parse --short "origin/$BRANCH")"
+    echo "Running checks on $sha"
+    sleep 3; echo "✓ Tests     vitest · 42 passed, 0 failed                        38s"
+    sleep 1; echo "✓ Lint      eslint · 0 problems                                 9s"
+    sleep 1; echo "✓ Types     tsc --noEmit · no errors                            21s"
+    sleep 2; echo "✓ Preview   deployed to https://session-refresh.preview.acme.dev   1m 4s"
+    echo "All checks passed"
+    put checks passed
+    ;;
+  merge)
+    [ "$(get state)" = "merged" ] && { echo "#128 is already merged"; exit 0; }
+    [ "$(get state)" = "open" ] || die "no open pull request for $BRANCH (pr create)"
+    clean || die "#128 has merge conflicts with main: resolve them first"
+    [ "$(get checks)" = "passed" ] || die "required checks have not passed yet (pr checks)"
+    tmp="$(mktemp -d)"
+    git clone -q "$S/remote/webapp.git" "$tmp/w" 2>/dev/null
+    (
+      cd "$tmp/w" && git checkout -q main &&
+      GIT_AUTHOR_NAME=You GIT_AUTHOR_EMAIL=you@acme.dev GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com \
+        git merge -q --no-ff "origin/$BRANCH" -m "Merge pull request #128 from acme/$BRANCH" &&
+      git push -q origin main
+    ) || { rm -rf "$tmp"; die "merge failed"; }
+    sha="$(git -C "$tmp/w" rev-parse --short HEAD)"
+    rm -rf "$tmp"
+    put state merged
+    git fetch -q origin 2>/dev/null
+    echo "✓ Merged pull request #128 ($(get title)) into main · $sha"
+    ;;
+  *)
+    echo "usage: pr create [--title T] | pr view | pr checks | pr merge" >&2
+    exit 2
+    ;;
+esac

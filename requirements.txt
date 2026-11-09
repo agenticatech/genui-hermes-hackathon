@@ -1,0 +1,11 @@
+# Benchmark, tests and scripts. The plugin itself needs nothing beyond Hermes.
+anthropic
+jsonschema
+playwright
+python-dotenv
+pytest
+
+# demo/montage (video editing)
+imageio-ffmpeg
+numpy
+pillow
