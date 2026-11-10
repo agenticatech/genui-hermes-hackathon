@@ -5,13 +5,17 @@ gives the agent **living components**: it shows a pre-designed card when a task 
 place after every tool result while it works, and asks for a decision with a button only when one is
 needed. What you choose in the card goes straight back to the agent.
 
+![A pull request merged from its card: one click, the busy state, then the graph turns purple](docs/merge.gif)
+
 ![A pull request that conflicts with main, in Hermes Desktop](docs/screenshots/pr_conflicts.png)
 
 ![A release whose migration fails: the rollback branches off the failed step](docs/screenshots/release_rollback.png)
 
 ![A diagnostic quiz answered in the card](docs/screenshots/study_quiz.png)
 
-The plugin itself, as listed in the Hermes plugin catalog, is [`plugin/`](plugin/README.md).
+The plugin itself, as submitted to the Hermes plugin catalog
+([NousResearch/hermes-agent#152159](https://github.com/NousResearch/hermes-agent/pull/152159)), is
+[`plugin/`](plugin/README.md). Built for the Nous Research Hermes Agent Plugin Hackathon.
 
 ## How it works
 
@@ -50,11 +54,17 @@ steps only, act on exactly what the user chose, show failures with their real ca
 The plugin has two halves: the agent half runs where Hermes runs (the tools, the turn hint, the
 backend route the card loads from), the desktop half runs in Hermes Desktop (the card renderer).
 
+Once the catalog entry is merged, `hermes plugins install genui` then `hermes plugins enable genui`
+does it (see [`plugin/README.md`](plugin/README.md#install)). Until then, or to work on the plugin:
+
 **Agent half**, on the Hermes host: copy `plugin/` to `~/.hermes/plugins/genui/`, then
 
 ```sh
 hermes plugins enable genui
 ```
+
+It needs `jsonschema` in Hermes' Python environment (declared in `plugin/plugin.yaml`; Hermes ships
+it only with its `mcp` extra).
 
 or, from this repo, deploy over SSH (`HERMES_HOST` in `.env` is an SSH alias with key auth):
 
@@ -127,15 +137,6 @@ python benchmark/run_eval.py --agent reference       # the reference policies: 1
 python benchmark/run_eval.py --agent silent          # works with no UI and never asks: 0 %
 ```
 
-## Demo videos
-
-[`demo/montage/`](demo/montage/montage.py) turns screen recordings of Hermes Desktop into split-screen
-posts: the run with GenUI on the left, a simulation of the same run without it on the right.
-
-```sh
-python demo/montage/montage.py push_to_prod   # reads demo/with_push_to_prod.mp4 (not in git), writes demo/out/
-```
-
 ## Known limits
 
 - The card appears where the model writes the `::genui` line. Models tend to write it with their
@@ -143,7 +144,6 @@ python demo/montage/montage.py push_to_prod   # reads demo/with_push_to_prod.mp4
 - A click shows up in the chat as a user message holding the JSON event: plugins cannot send hidden turns.
 - `ask_user` cannot wait for the answer (Hermes' own `clarify` tool is not reachable from a plugin):
   the agent asks in its reply and ends its turn.
-- Links in a card do not open: the card's sandbox blocks pop-ups.
 
 ## Layout
 
@@ -151,7 +151,6 @@ python demo/montage/montage.py push_to_prod   # reads demo/with_push_to_prod.mp4
 plugin/              the Hermes plugin (agent half, backend route, desktop half, components, themes)
 benchmark/           benchmark v3: tasks, scripted worlds, graders, reference agents, model adapter
 tests/               pytest suite (unit, plugin, browser, benchmark validity)
-demo/montage/        video editing for the demo posts
 demo/cards/          motion study: one scripted task per use case, replayed through the real cards
 scripts/deploy.py    deploy the agent half to a Hermes host over SSH
 docs/                images for this README
