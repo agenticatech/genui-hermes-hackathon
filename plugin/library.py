@@ -16,6 +16,7 @@ import json
 import os
 import re
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -29,6 +30,8 @@ DEFAULT_THEME = "default"
 NAME = re.compile(r"^[a-z0-9_-]{1,64}$")
 # What the Desktop's ::genui directive accepts as an id, and what component_key produces.
 KEY = re.compile(r"^[a-f0-9]{16}$")
+TMP = re.compile(r"^[a-f0-9]{16}\.\d+\.\d+\.tmp$")  # Store.put's half-written records
+RETENTION_DAYS = 30  # a card nobody updated for this long is removed when a new card is shown
 MAX_ID = 64
 MAX_ERRORS = 5
 
@@ -41,8 +44,8 @@ def load_library(root: Path = COMPONENTS_DIR) -> dict[str, dict]:
 
 def validate(schema: dict, props: Any) -> list[str]:
     """Schema errors as short lines the model can act on, each prefixed with where it is."""
-    from jsonschema import Draft202012Validator  # ships with Hermes; imported late so a broken
-    # install fails one tool call with a clear error instead of the whole plugin at load.
+    from jsonschema import Draft202012Validator  # plugin.yaml's python_dependencies; imported late
+    # so a missing install fails one tool call with a clear error instead of the whole plugin at load.
     errors = sorted(Draft202012Validator(schema).iter_errors(props), key=lambda e: list(map(str, e.absolute_path)))
     out = []
     for e in errors[:MAX_ERRORS]:
@@ -119,10 +122,11 @@ def frame_document(ctype: str, runtime: str, theme_js: str) -> str:
 
 class Store:
     """One JSON file per shown component, so the backend routes (another module, maybe another
-    process) read what the tools wrote."""
+    process) read what the tools wrote. Old cards are pruned (see prune)."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, retention_days: float = RETENTION_DAYS):
         self.root = Path(root)
+        self.retention = retention_days * 86400
 
     def _path(self, key: str) -> Path:
         if not KEY.match(key or ""):
@@ -141,6 +145,30 @@ class Store:
         tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
         tmp.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, path)  # atomic: a reader never sees half a record
+
+    def prune(self, now: float | None = None) -> int:
+        """Remove the cards nobody updated for the retention period (an old chat then shows the card
+        as unavailable), and the temp files a crash left behind. Touches only the store's own files."""
+        now = time.time() if now is None else now
+        removed = 0
+        try:
+            entries = list(self.root.iterdir())
+        except OSError:
+            return 0
+        for p in entries:
+            if TMP.match(p.name):
+                max_age = 3600  # a write in flight lasts milliseconds
+            elif p.suffix == ".json" and KEY.match(p.stem):
+                max_age = self.retention
+            else:
+                continue
+            try:
+                if now - p.stat().st_mtime > max_age:
+                    p.unlink()
+                    removed += 1
+            except OSError:
+                pass  # another process got there first, or it is busy: next time
+        return removed
 
 
 def _error(*errors: str) -> dict:
@@ -180,6 +208,7 @@ class Components:
                               "instead of showing it again (one card per entity)")
             self._commit({"key": key, "id": cid, "type": ctype, "theme": resolve_theme(ctype, self.settings(), self.themes_dir),
                           "props": props, "rev": 1})
+        self.store.prune()  # here and not on updates: a new card is rare, an update is not
         return {"ok": True, "directive": f'::genui{{id="{key}"}}'}
 
     def update(self, session_id: str | None, args: dict) -> dict:

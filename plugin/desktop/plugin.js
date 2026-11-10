@@ -7,8 +7,9 @@
 // it as the plugin event `plugin.genui.component` and is posted into the same frame, which repaints
 // in place. A click on a decision goes back to the agent as one user turn:
 // {"type": "user_action", "component_id": "<id>", "action_id": "<id>", "values": {...}}, values
-// (what the user chose in the card) only when there is something in it.
-import { host, SandboxedFrame, STATUSBAR_AREAS, TRANSCRIPT_DIRECTIVE_AREA } from '@hermes/plugin-sdk'
+// (what the user chose in the card) only when there is something in it. A click on a link in the
+// card opens it in the user's browser (the frame's sandbox has no popups).
+import { host, SandboxedFrame, STATUSBAR_AREAS, TRANSCRIPT_DIRECTIVE_AREA, useTheme } from '@hermes/plugin-sdk'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { jsx } from 'react/jsx-runtime'
 
@@ -52,10 +53,11 @@ export function frameDocument(record, prelude = '') {
 // One shown component's link with its frame: keeps the latest props (by rev, so a late REST answer
 // never undoes a newer event), posts them once the frame's theme is ready, relays clicks to the chat.
 export class ComponentChannel {
-  constructor({ submit, notify = () => {}, onResize = () => {} }) {
+  constructor({ submit, notify = () => {}, onResize = () => {}, open = () => {} }) {
     this.submit = submit
     this.notify = notify
     this.onResize = onResize
+    this.open = open
     this.latest = null
     this.win = null
     this.ready = false
@@ -88,6 +90,9 @@ export class ComponentChannel {
       this.onResize(Number(event.data.height) || 0)
     } else if (type === 'genui:action') {
       this.deliver(String(event.data.action_id || ''), event.data.values)
+    } else if (type === 'genui:open') {
+      const url = String(event.data.url || '')
+      if (/^https?:\/\//i.test(url)) this.open(url)
     } else if (type === 'genui:error') {
       console.warn('[genui] theme error:', event.data.message)
     }
@@ -125,15 +130,18 @@ function themePrelude(scheme = colorScheme()) {
   )
 }
 
-// Theme changes repaint the app root (data-hermes-mode, class, inline tokens): bump a counter so
-// the frame is rebuilt with the new tokens, as ::preview does. The props survive: they live here.
+// A theme change (skin, light or dark, accent) bumps a counter so the frame is rebuilt with the new
+// tokens, as ::preview does. The props survive: they live here. The SDK's theme provider paints the
+// tokens on the app root in its own effect, which runs after this one (parents after children), so
+// the render the bump causes reads the new tokens. The first run is the mount: nothing to rebuild.
 function useThemeEpoch() {
+  const { theme, renderedMode } = useTheme()
   const [epoch, setEpoch] = useState(0)
+  const mounted = useRef(false)
   useEffect(() => {
-    const observer = new MutationObserver(() => setEpoch((n) => n + 1))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-hermes-mode', 'data-hermes-theme'] })
-    return () => observer.disconnect()
-  }, [])
+    if (mounted.current) setEpoch((n) => n + 1)
+    mounted.current = true
+  }, [theme, renderedMode])
   return epoch
 }
 
@@ -162,7 +170,8 @@ function GenuiComponent({ componentKey }) {
           const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, reported))
           sized.current = { height: next, reported: true }
           setHeight(next)
-        }
+        },
+        open: (url) => pluginCtx?.os?.openExternal?.(url)
       }),
     [componentKey]
   )

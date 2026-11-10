@@ -54,7 +54,7 @@ The plugin has two halves: the agent half runs where Hermes runs (the tools, the
 route the cards load from), the Desktop half runs in Hermes Desktop (the card renderer). If your
 Desktop connects to a remote gateway, install the plugin on that host and in Desktop.
 
-Requires Hermes 0.22.5 or later. Cards render in Hermes Desktop; on other platforms the agent works in
+Requires Hermes 0.22.5 or later, and `jsonschema` (declared in `plugin.yaml`, installed with the plugin). Cards render in Hermes Desktop; on other platforms the agent works in
 text as usual (the hint is not sent there).
 
 ## Themes
@@ -80,14 +80,15 @@ popovers). The default theme shares its parts across cards in `themes/default/ki
 - **No network calls, no third-party service, no telemetry.** Cards load from the plugin's own route on
   your Hermes host.
 - **Writes** one small JSON file per shown card (its props and revision) in the plugin's data
-  directory, so a card survives a reload. It reads nothing outside its own files and holds no
-  credentials.
+  directory, so a card survives a reload. Cards nobody updated for 30 days are removed when a new
+  card is shown. It reads nothing outside its own files and holds no credentials.
 - **Adds a turn hint** of a few hundred tokens to each Hermes Desktop turn, so the agent knows the
   cards exist.
 - **Runs no commands and no background processes.** The agent's own tools do the work; the cards
   only show it.
 - **Desktop half:** each card runs in a sandboxed frame (opaque origin, scripts only) and draws the
-  agent's data as text. A click sends one visible message from you to the chat.
+  agent's data as text. A click on a decision sends one visible message from you to the chat; a click
+  on a link in a card opens it in your browser.
 
 ## Limits
 

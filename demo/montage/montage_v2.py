@@ -146,12 +146,15 @@ def header(canvas: Image.Image, lw: int, s: float, speed: float, scene: dict, f:
     d.text((28 + d.textlength(left, font=bold) + 18, hh / 2 - 11), scene["title"], font=small, fill=DIM + (a,))
     right = "WITHOUT GENUI · simulated"
     d.text((lw + 22, hh / 2 - 11), right, font=small, fill=DIM + (a,))
-    if speed > 1:
-        badge = f"▶▶ {speed:g}×"
-        w = d.textlength(badge, font=small)
+    if speed > 1:  # a fast-forward icon drawn as two triangles: Segoe UI has no ▶
+        label = f"{speed:g}×"
+        w = 22 + 8 + d.textlength(label, font=small)
         x1 = lw - 20
-        d.rounded_rectangle((x1 - w - 24, hh / 2 - 15, x1, hh / 2 + 15), radius=15, fill=(24, 29, 40, a), outline=LINE + (a,), width=2)
-        d.text((x1 - w - 12, hh / 2 - 11), badge, font=small, fill=FG + (a,))
+        x0, cy = x1 - w - 24, hh / 2
+        d.rounded_rectangle((x0, cy - 15, x1, cy + 15), radius=15, fill=(24, 29, 40, a), outline=LINE + (a,), width=2)
+        for dx in (0, 11):
+            d.polygon([(x0 + 12 + dx, cy - 6), (x0 + 23 + dx, cy), (x0 + 12 + dx, cy + 6)], fill=FG + (a,))
+        d.text((x0 + 12 + 22 + 8, cy - 11), label, font=small, fill=FG + (a,))
     out = canvas.convert("RGBA")
     out.alpha_composite(layer)
     return out.convert("RGB")

@@ -1,4 +1,6 @@
 import json
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -159,6 +161,26 @@ def test_store_refuses_paths(tmp_path):
     assert Store(tmp_path).get("../../etc/passwd") is None
     with pytest.raises(ValueError):
         Store(tmp_path).put({"key": "../../etc/passwd"})
+
+
+def test_old_cards_are_pruned_when_a_new_card_is_shown(tmp_path):
+    c = Components(Store(tmp_path))
+    c.show("s1", {"id": "old", "type": "pr_card", "props": PR})
+    c.show("s1", {"id": "recent", "type": "pr_card", "props": PR})
+    month_ago = time.time() - 31 * 86400
+    old = tmp_path / f"{component_key('s1', 'old')}.json"
+    crashed = tmp_path / f"{component_key('s1', 'x')}.123.456.tmp"   # a write a crash cut short
+    foreign = tmp_path / "notes.json"                                 # not the store's: left alone
+    crashed.write_text("{", encoding="utf-8")
+    foreign.write_text("{}", encoding="utf-8")
+    for f in (old, crashed, foreign):
+        os.utime(f, (month_ago, month_ago))
+    c.update("s1", {"id": "recent", "patch": {"status": "pushing"}})    # updates do not prune
+    assert old.exists()
+    c.show("s1", {"id": "new", "type": "pr_card", "props": PR})
+    assert c.store.get(component_key("s1", "old")) is None
+    assert c.store.get(component_key("s1", "recent")) is not None
+    assert not crashed.exists() and foreign.exists()
 
 
 # --- themes ------------------------------------------------------------------------

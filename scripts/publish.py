@@ -1,7 +1,8 @@
 """Publish a release of this repository to its public GitHub repository, as one commit.
 
-The public repository gets the exact tree of a local commit (default: HEAD), authored by the public
-account, on top of what it already has; this repository's own history stays private. Prints the
+The public repository gets the tree of a local commit (default: HEAD), minus the paths in PRIVATE,
+authored by the public account, on top of what it already has; this repository's own history and
+its private files (launch drafts, raw recordings, benchmark results) stay private. Prints the
 40-character sha to pin in the plugin catalog.
 
     python scripts/publish.py --remote https://<user>@github.com/<user>/hermes-genui.git \
@@ -25,6 +26,29 @@ def git(*args: str, env: dict | None = None, check: bool = True) -> str:
     return done.stdout.strip()
 
 
+PRIVATE = [  # kept in the private repository only, never published
+    ".claude",
+    "launch",
+    "benchmark/results",
+    "demo/.gitattributes",
+    "demo/*.mp4",
+    "demo/out",
+]
+
+
+def public_tree(ref: str) -> str:
+    """The tree of `ref` without the private paths, written through a scratch index."""
+    index = git("rev-parse", "--git-path", "publish-index")
+    env = {**os.environ, "GIT_INDEX_FILE": index}
+    try:
+        git("read-tree", ref, env=env)
+        git("rm", "--cached", "-r", "-q", "-f", "--ignore-unmatch", "--", *PRIVATE, env=env)
+        return git("write-tree", env=env)
+    finally:
+        if os.path.exists(index):
+            os.remove(index)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--remote", required=True, help="the public repository's https URL")
@@ -37,7 +61,7 @@ def main() -> None:
 
     if git("status", "--porcelain", "--untracked-files=no"):
         sys.exit("uncommitted changes: commit them first, the published tree is the one of --ref")
-    tree = git("rev-parse", f"{a.ref}^{{tree}}")
+    tree = public_tree(a.ref)
     head = git("ls-remote", a.remote, f"refs/heads/{a.branch}").split()
     parents = []
     if head:

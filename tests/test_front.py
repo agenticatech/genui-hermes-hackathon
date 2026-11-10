@@ -27,6 +27,7 @@ export const host = {
 export const SandboxedFrame = 'iframe'
 export const STATUSBAR_AREAS = { left: 'statusBar.left', right: 'statusBar.right' }
 export const TRANSCRIPT_DIRECTIVE_AREA = 'transcript.directive'
+export const useTheme = () => ({ theme: {}, renderedMode: 'light' })
 """,
     "/react.js": """
 export const useEffect = () => {}, useLayoutEffect = () => {}, useMemo = (f) => f(), useRef = (v) => ({ current: v }), useState = (v) => [v, () => {}]
@@ -42,13 +43,14 @@ HARNESS = """<!doctype html><html><head><meta charset="utf-8">
 <script type="module">
 import { host } from '@hermes/plugin-sdk'
 import { ComponentChannel, frameDocument, toDataUrl } from '/plugin.js'
-window.__turns = []; window.__notices = []; window.__composerVisible = true; window.__heights = []
+window.__turns = []; window.__notices = []; window.__composerVisible = true; window.__heights = []; window.__opened = []
 const iframe = document.getElementById('card')
 // Wired like GenuiComponent wires it.
 const channel = new ComponentChannel({
   submit: (text) => host.composer.submit(null, text),
   notify: () => host.notify({ kind: 'warning' }),
   onResize: (h) => window.__heights.push(h),
+  open: (url) => window.__opened.push(url),
 })
 addEventListener('message', (e) => channel.handle(e))
 window.__load = (payload) => { channel.accept(payload); channel.attach(iframe.contentWindow); iframe.src = toDataUrl(frameDocument(payload)) }
@@ -208,3 +210,13 @@ def test_frame_reports_its_height(page, agent):
     agent.update("s1", {"id": "pr", "patch": UPDATES[2]})
     page.evaluate("p => window.__event(p)", agent.events[-1])
     page.wait_for_function(f"() => window.__heights.at(-1) > {before}")
+
+
+def test_a_link_in_the_card_opens_in_the_browser(page, agent):
+    url = "https://github.com/acme/webapp/pull/128"
+    agent.show("s1", {"id": "pr", "type": "pr_card", "props": {**PR, "links": [{"label": "GitHub", "url": url}]}})
+    page.evaluate("p => window.__load(p)", frame_payload(agent.store.get(component_key("s1", "pr"))))
+    card(page).locator(f'a[href="{url}"]').click()                  # the sandbox has no popups: the host opens it
+    page.wait_for_function("() => window.__opened.length === 1")
+    assert page.evaluate("() => window.__opened") == [url]
+    assert page.errors == []

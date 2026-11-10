@@ -7,6 +7,8 @@
 //                 {type: 'genui:action', action_id, values}  the user clicked a decision; values is
 //                                                         what they chose in the card (see collect)
 //                 {type: 'genui:resize', height}          where the content ends, so the frame fits it
+//                 {type: 'genui:open', url}               the user clicked an http(s) link: the host
+//                                                         opens it in their browser (no popups here)
 //                 {type: 'genui:error', message}          the theme threw
 // A theme registers GenUI.register(type, (root, props, emit) => ...) and gets the same root on every
 // paint, so it can update nodes in place instead of rebuilding the card; GenUI.motion animates
@@ -41,6 +43,15 @@
     try { draw(root, props, emit); }
     catch (e) { console.error(e); post({ type: 'genui:error', message: String((e && e.stack) || e) }); }
   };
+
+  // The frame's sandbox has no popups (the SDK refuses them), so a link cannot open from here: its
+  // click goes to the host, which opens http(s) links in the user's browser.
+  addEventListener('click', (e) => {
+    const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    e.preventDefault();
+    if (/^https?:\/\//i.test(a.href)) post({ type: 'genui:open', url: a.href });
+  });
 
   addEventListener('message', (e) => {
     if (e.source !== parent || !e.data) return;
